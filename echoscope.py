@@ -1097,8 +1097,9 @@ class DemoScene:
     RATE = 48000
     CHUNK = 512
 
-    def __init__(self, engine: AudioEngine) -> None:
+    def __init__(self, engine, realtime: bool = True) -> None:
         self.engine = engine
+        self.realtime = realtime     # False: generate as fast as possible (offline rendering)
         self.running = False
         self.thread = None
         rng = np.random.default_rng(7)
@@ -1144,7 +1145,13 @@ class DemoScene:
         except Exception:
             log_exc('demo scene')
 
-    def _loop(self) -> None:
+    def render(self, seconds: float) -> None:
+        """Offline: generate `seconds` of the scene synchronously into engine.push (no pacing)."""
+        self.running = True
+        self._loop(max_samples=int(seconds * self.RATE))
+        self.running = False
+
+    def _loop(self, max_samples=None) -> None:
         RATE, CHUNK = self.RATE, self.CHUNK
         # engine: sawtooth 48 Hz + square 96.5 Hz through a 260 Hz low-pass, as harmonic sums
         def lp260(f):
@@ -1159,7 +1166,7 @@ class DemoScene:
         t0 = time.perf_counter()
         n = 0
         idx = np.arange(CHUNK, dtype=np.float64)
-        while self.running:
+        while self.running and (max_samples is None or n < max_samples):
             ts = (n + idx) / RATE
             tsec = n / RATE
             eng = np.zeros(CHUNK)
@@ -1200,9 +1207,10 @@ class DemoScene:
             st = np.stack((np.clip(L, -1, 1), np.clip(R, -1, 1)), axis=1).astype(np.float32)
             self.engine.push(st)
             n += CHUNK
-            d = t0 + n / RATE - time.perf_counter()
-            if d > 0:
-                time.sleep(d)
+            if self.realtime:
+                d = t0 + n / RATE - time.perf_counter()
+                if d > 0:
+                    time.sleep(d)
 
 
 # ---------------------------------------------------------------------------
