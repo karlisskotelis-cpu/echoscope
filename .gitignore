@@ -1,0 +1,9 @@
+build/
+dist/
+release/
+__pycache__/
+*.spec
+*.ico
+settings.json
+errorlog.txt
+*.jsonl
